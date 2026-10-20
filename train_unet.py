@@ -48,11 +48,31 @@ dataloader = DataLoader(
 # 3. Define the noise schedule
 # --------------------------------------------------
 
-betas = torch.linspace(0.0001, 0.02, T)
+import math
 
-alphas = 1.0 - betas
+# Cosine noise schedule
+steps = torch.arange(T + 1, dtype=torch.float32)
+
+alpha_bars_all = torch.cos(
+    ((steps / T + 0.008) / 1.008) * math.pi / 2
+) ** 2
+
+alpha_bars_all = (
+    alpha_bars_all / alpha_bars_all[0]
+)
+
+betas = 1 - (
+    alpha_bars_all[1:] / alpha_bars_all[:-1]
+)
+
+betas = betas.clamp(0.0001, 0.999)
+
+alphas = 1 - betas
 
 alpha_bars = torch.cumprod(alphas, dim=0)
+
+print("First alpha_bar:", alpha_bars[0].item())
+print("Last alpha_bar:", alpha_bars[-1].item())
 
 
 # --------------------------------------------------
@@ -230,8 +250,8 @@ for epoch in range(EPOCHS):
 
 torch.save(
     model.state_dict(),
-    "unet_model.pth"
+    "unet_cosine_model.pth"
 )
 
 print("U-Net training complete!")
-print("Saved: unet_model.pth")
+print("Saved: unet_cosine_model.pth")
