@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-
+import math
 
 # --------------------------------------------------
 # 1. Configuration
@@ -16,8 +16,22 @@ T = 100
 # --------------------------------------------------
 # 2. Noise schedule
 # --------------------------------------------------
+import math
 
-betas = torch.linspace(0.0001, 0.02, T)
+# Cosine noise schedule — must match training
+steps = torch.arange(T + 1, dtype=torch.float32)
+
+alpha_bars_all = torch.cos(
+    ((steps / T + 0.008) / 1.008) * math.pi / 2
+) ** 2
+
+alpha_bars_all = alpha_bars_all / alpha_bars_all[0]
+
+betas = 1 - (
+    alpha_bars_all[1:] / alpha_bars_all[:-1]
+)
+
+betas = betas.clamp(0.0001, 0.999)
 
 alphas = 1.0 - betas
 
@@ -25,6 +39,7 @@ alpha_bars = torch.cumprod(alphas, dim=0)
 
 print("First alpha_bar:", alpha_bars[0].item())
 print("Last alpha_bar:", alpha_bars[-1].item())
+
 
 print(
     "Original signal remaining at final timestep:",
@@ -128,7 +143,7 @@ model = MiniUNet().to(device)
 
 model.load_state_dict(
     torch.load(
-        "unet_model.pth",
+        "unet_cosine_model.pth",
         map_location=device,
         weights_only=True
     )
@@ -172,7 +187,8 @@ for t_value in [0, 25, 50, 75, 99]:
     t = torch.full(
         (batch_size,),
         t_value,
-        dtype=torch.long
+        dtype=torch.long,
+        device=device
     )
 
     noise = torch.randn_like(images)
